@@ -142,8 +142,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Chapter3.cpp" />
-    <ClCompile Include="OpdrachtEenPuntTwee.cpp" />
+    <ClCompile Include="OpdrachtEenPuntDrie.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
