@@ -13,7 +13,7 @@ int threshold2 = 0;
 
 void main()
 {
-	string path = "Resources/hand.png";
+	string path = "Resources/fruit.jpg";
 	Mat img = imread(path);
 	Mat imgGray, imgBlur, imgCanny, imgDil, imgErode;
 
