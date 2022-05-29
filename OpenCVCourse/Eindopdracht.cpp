@@ -20,7 +20,7 @@ Mat preProcessing(Mat img)
 	Canny(imgBlur, imgCanny, 25, 75);
 	Mat kernel = getStructuringElement(MORPH_RECT, Size(3, 3));
 	dilate(imgCanny, imgDil, kernel);
-	//erode(imgDil, imgErode, kernel);
+
 	return imgDil;
 }
 
@@ -30,7 +30,6 @@ vector<Point> getContours(Mat image) {
 	vector<Vec4i> hierarchy;
 
 	findContours(image, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-	//drawContours(img, contours, -1, Scalar(255, 0, 255), 2);
 	vector<vector<Point>> conPoly(contours.size());
 	vector<Rect> boundRect(contours.size());
 
@@ -40,7 +39,6 @@ vector<Point> getContours(Mat image) {
 	for (int i = 0; i < contours.size(); i++)
 	{
 		int area = contourArea(contours[i]);
-		//cout << area << endl;
 
 		string objectType;
 
@@ -51,12 +49,10 @@ vector<Point> getContours(Mat image) {
 
 			if (area > maxArea && conPoly[i].size() == 4) {
 
-				//drawContours(imgOriginal, conPoly, i, Scalar(255, 0, 255), 5);
 				biggest = { conPoly[i][0],conPoly[i][1] ,conPoly[i][2] ,conPoly[i][3] };
 				maxArea = area;
 			}
-			//drawContours(imgOriginal, conPoly, i, Scalar(255, 0, 255), 2);
-			//rectangle(imgOriginal, boundRect[i].tl(), boundRect[i].br(), Scalar(0, 255, 0), 5);
+
 		}
 	}
 	return biggest;
@@ -70,14 +66,17 @@ void detectWords(const Mat image) {
 
 	// connect horizontally oriented regions
 	Mat connected;
+
 	image.copyTo(connected);
-	Mat morphKernel = getStructuringElement(MORPH_RECT, Size(9, 1));
+	Mat morphKernel = getStructuringElement(MORPH_RECT, Size(3, 1));
 	morphologyEx(image, connected, MORPH_CLOSE, morphKernel);
 	// find contours
 	Mat mask = Mat::zeros(image.size(), CV_8UC1);
-	imshow("Image connected Words", connected);
+	//imshow("Image connected Words", connected); // shows the b/w image used to find the words
 	findContours(connected, contours, hierarchy, RETR_CCOMP, CHAIN_APPROX_SIMPLE);
 
+	//crash prevention in case the program can't find any contours
+	if (contours.empty()) return;
 
 	for (int i = 0; i >= 0; i = hierarchy[i][0]) {
 		Rect rect = boundingRect(contours[i]);
@@ -90,9 +89,9 @@ void detectWords(const Mat image) {
 		
 		double r = (double)countNonZero(maskROI) / (rect.width * rect.height);
 
-		if (r > .50 /* assume at least 45% of the area is filled if it contains text */
+		if (r > .45 /* assume at least 45% of the area is filled if it contains text */
 			&&
-			(rect.height > 16 && rect.width > 16) /* constraints on region size */
+			(rect.height > 8 && rect.width > 8) /* constraints on region size */
 			/* these two conditions alone are not very robust. better to use something
 			like the number of significant peaks in a horizontal projection as a third condition */
 			)
@@ -103,28 +102,29 @@ void detectWords(const Mat image) {
 
 		}
 	}
+	cout << "words:" << amountOfWords++ << endl;
 
 }
 
-void detectLetterAmount(const Mat image) {
+void detectLetters(const Mat image) {
 	vector<vector<Point>> contours;
 	vector<Vec4i> hierarchy;
 	int amountOfLetters = 0;
-	
-	// connect horizontally oriented regions
+
 	Mat connected;
 	image.copyTo(connected);
 
-	Mat Kernel = getStructuringElement(MORPH_RECT, Size(2, 2));
-	//erode(connected, connected, Kernel);
-	Mat morphKernel = getStructuringElement(MORPH_ELLIPSE, Size(2, 2));
-	morphologyEx(connected, connected, MORPH_OPEN, morphKernel);
-	//erode(connected, connected, morphKernel);
-	// find contours
+	//Connect vertical oriented regions for better detection
+	Mat morphKernel = getStructuringElement(MORPH_RECT, Size(1, 4));
+	morphologyEx(connected, connected, MORPH_CLOSE, morphKernel);
+
+	//find contours
 	Mat mask = Mat::zeros(image.size(), CV_8UC1);
 	imshow("Image connected Letters", connected);
 	findContours(connected, contours, hierarchy, RETR_CCOMP, CHAIN_APPROX_SIMPLE);
 
+	//crash prevention in case the program can't find any contours
+	if (contours.empty()) return;
 
 	for (int i = 0; i >= 0; i = hierarchy[i][0]) {
 		Rect rect = boundingRect(contours[i]);
@@ -137,42 +137,47 @@ void detectLetterAmount(const Mat image) {
 		
 		double r = (double)countNonZero(maskROI) / (rect.width * rect.height);
 
-		if (r > .3 /* assume at least 45% of the area is filled if it contains text */
+		if (r > .3 /* assume at least 30% of the area is filled if it contains a letter */
 			&&
-			(rect.height > 8 && rect.width > 8) /* constraints on region size */
-			/* these two conditions alone are not very robust. better to use something
-			like the number of significant peaks in a horizontal projection as a third condition */
+			(rect.height > 16 && rect.width > 4) /* constraints on region size */
 			)
 		{
+			//draw a rectangle around the letter and indicate the number
 			rectangle(imgLetters, rect, Scalar(0, 255, 0), 2);
 			amountOfLetters++;
 			putText(imgLetters, to_string(amountOfLetters), Point(rect.x, rect.y), FONT_HERSHEY_DUPLEX, 0.75, Scalar(0, 69, 255));
 
 		}
 	}
-
+	cout << "letters:" << amountOfLetters++ << endl;
+	//downscale the image so it properly fit's in a screen
+	pyrDown(imgLetters, imgLetters);
 
 }
 
-void detectLetters(Mat image) {
+void detectWordsLetters(Mat image) {
 	Mat small;
 
+	//Upscale the image for more precise detection
+	pyrUp(image, imgLetters);
+
 	image.copyTo(imgWords);
-	//pyrUp(image, imgWords);
-	//c
-	imgWords.copyTo(imgLetters);
 	//convert image to black and white
-	cvtColor(imgWords, small, COLOR_BGR2GRAY);
+	cvtColor(imgLetters, small, COLOR_BGR2GRAY);
 
-
+	//morpholigical gradient transformation
 	Mat grad;
-	Mat morphKernel = getStructuringElement(MORPH_ELLIPSE, Size(2, 2));
+	Mat morphKernel = getStructuringElement(MORPH_CROSS, Size(2, 3));
 	morphologyEx(small, grad, MORPH_GRADIENT, morphKernel);
 	Mat bw;
 	threshold(grad, bw, 0.0, 255.0, THRESH_BINARY | THRESH_OTSU);
 
+	//start calling the detect methods
+	detectLetters(bw);
+
+	//downscale the size of bw cause word detection works better with smaller images
+	pyrDown(bw, bw);
 	detectWords(bw);
-	detectLetterAmount(bw);
 	
 }
 
@@ -217,19 +222,15 @@ Mat getWarp(Mat img, vector<Point> points, float w, float h)
 
 void main() {
 
-	string path = "Resources/paper.jpg";
+	string path = "Resources/testdocument.jpg";
 	imgOriginal = imread(path);
-//	resize(imgOriginal, imgOriginal, Size(), 0.5, 0.5);
 
 	// Preprpcessing - Step 1 
-	//pyrDown(imgOriginal, imgOriginal);
 	imgThre = preProcessing(imgOriginal);
 
 	// Get Contours - Biggest  - Step 2
 	initialPoints = getContours(imgThre);
-	//drawPoints(initialPoints, Scalar(0, 0, 255));
 	docPoints = reorder(initialPoints);
-	//drawPoints(docPoints, Scalar(0, 255, 0));
 
 	// Warp - Step 3 
 	imgWarp = getWarp(imgOriginal, docPoints, w, h);
@@ -238,12 +239,12 @@ void main() {
 	int cropVal = 5;
 	Rect roi(cropVal, cropVal, w - (2 * cropVal), h - (2 * cropVal));
 	imgCrop = imgWarp(roi);
-	detectLetters(imgCrop);
+	detectWordsLetters(imgCrop);
 
-	//mshow("Image", imgOriginal);
-	//imshow("Image Dilation", imgThre);
-	//imshow("Image Warp", imgWarp);
-	//imshow("Image Crop", imgCrop);
+	imshow("Image", imgOriginal);
+	imshow("Image Dilation", imgThre);
+	imshow("Image Warp", imgWarp);
+	imshow("Image Crop", imgCrop);
 	imshow("Image letters", imgLetters);
 	imshow("Image Words", imgWords);
 	
